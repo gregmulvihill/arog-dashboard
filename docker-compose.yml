@@ -16,6 +16,10 @@ services:
       - ./data:/app/data
       - ./sessions:/app/sessions
 
+    # Add docker group to allow socket access
+    group_add:
+      - "125"  # docker group on host
+
     # Host networking for accurate system metrics
     # Comment out ports above if using host mode
     # network_mode: host
