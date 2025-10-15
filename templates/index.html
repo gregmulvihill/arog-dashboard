@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ hostname }} | Arog Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js" defer></script>
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Header -->
+        <div class="header">
+            <h1>{{ hostname }}.dashboard</h1>
+            <div class="stats">
+                <span>Uptime: {{ "%.1f"|format(system_stats.uptime / 3600) }}h</span>
+                <span>Load: {{ "%.2f %.2f %.2f"|format(*system_stats.load_avg) }}</span>
+                <span>Containers: {{ containers|length }}</span>
+            </div>
+        </div>
+
+        <!-- Left: Containers + System -->
+        <div class="containers-panel">
+            <!-- Docker Containers -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span>Docker Containers ({{ containers|length }})</span>
+                    <span class="text-subtle">{{ now.strftime('%H:%M:%S') }}</span>
+                </div>
+                <div class="panel-content">
+                    <table class="container-list">
+                        <thead>
+                            <tr>
+                                <th>Status</th>
+                                <th>Name</th>
+                                <th>Image</th>
+                                <th>Ports</th>
+                                <th>Web UI</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for container in containers %}
+                            <tr>
+                                <td>
+                                    <span class="container-status status-{{ container.state }}"></span>
+                                    {{ container.state }}
+                                </td>
+                                <td><code>{{ container.name }}</code></td>
+                                <td class="text-subtle">{{ container.image.split(':')[0].split('/')[-1] }}</td>
+                                <td class="text-subtle" style="font-size: 10px;">
+                                    {% if container.ports %}
+                                        {{ container.ports[0].host_port if container.ports[0].host_port else '-' }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if container.web_url %}
+                                        <a href="{{ container.web_url }}" target="_blank" class="container-link">→ Open</a>
+                                    {% else %}
+                                        <span class="text-subtle">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- System Metrics -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span>System Metrics</span>
+                    <span class="text-subtle" id="metrics-time">{{ now.strftime('%H:%M:%S') }}</span>
+                </div>
+                <div class="panel-content">
+                    <div class="metrics-grid" id="system-metrics"
+                         hx-get="/api/system"
+                         hx-trigger="every 2s"
+                         hx-swap="innerHTML">
+                        <!-- CPU -->
+                        <div class="metric">
+                            <div class="metric-label">CPU</div>
+                            <div class="metric-value">{{ "%.1f"|format(system_stats.cpu_percent) }}%</div>
+                            <div class="metric-bar">
+                                <div class="metric-bar-fill {% if system_stats.cpu_percent > 80 %}error{% elif system_stats.cpu_percent > 60 %}warning{% endif %}"
+                                     style="width: {{ system_stats.cpu_percent }}%"></div>
+                            </div>
+                            <div class="text-subtle" style="font-size: 10px; margin-top: 2px;">
+                                {{ system_stats.cpu_count }} cores @ {{ "%.0f"|format(system_stats.cpu_freq or 0) }} MHz
+                            </div>
+                        </div>
+
+                        <!-- Memory -->
+                        <div class="metric">
+                            <div class="metric-label">Memory</div>
+                            <div class="metric-value">{{ "%.1f"|format(system_stats.memory_percent) }}%</div>
+                            <div class="metric-bar">
+                                <div class="metric-bar-fill {% if system_stats.memory_percent > 80 %}error{% elif system_stats.memory_percent > 60 %}warning{% endif %}"
+                                     style="width: {{ system_stats.memory_percent }}%"></div>
+                            </div>
+                            <div class="text-subtle" style="font-size: 10px; margin-top: 2px;">
+                                {{ "%.1f"|format(system_stats.memory_used / 1024**3) }} / {{ "%.1f"|format(system_stats.memory_total / 1024**3) }} GB
+                            </div>
+                        </div>
+
+                        <!-- Disk -->
+                        {% for disk in system_stats.disk_usage[:2] %}
+                        <div class="metric">
+                            <div class="metric-label">{{ disk.mountpoint }}</div>
+                            <div class="metric-value">{{ "%.1f"|format(disk.percent) }}%</div>
+                            <div class="metric-bar">
+                                <div class="metric-bar-fill {% if disk.percent > 80 %}error{% elif disk.percent > 60 %}warning{% endif %}"
+                                     style="width: {{ disk.percent }}%"></div>
+                            </div>
+                            <div class="text-subtle" style="font-size: 10px; margin-top: 2px;">
+                                {{ "%.1f"|format(disk.used / 1024**3) }} / {{ "%.1f"|format(disk.total / 1024**3) }} GB
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Processes -->
+            <div class="panel">
+                <div class="panel-header">Top Processes (CPU)</div>
+                <div class="panel-content">
+                    <table class="process-list">
+                        {% for proc in system_stats.top_processes[:8] %}
+                        <tr>
+                            <td style="width: 40px;">{{ proc.pid }}</td>
+                            <td>{{ proc.name[:30] }}</td>
+                            <td style="width: 50px; text-align: right;">{{ "%.1f"|format(proc.cpu_percent) }}%</td>
+                            <td style="width: 50px; text-align: right;">{{ "%.1f"|format(proc.memory_percent) }}%</td>
+                        </tr>
+                        {% endfor %}
+                    </table>
+                </div>
+            </div>
+
+            <!-- Network Interfaces -->
+            <div class="panel">
+                <div class="panel-header">Network</div>
+                <div class="panel-content">
+                    <table class="process-list">
+                        {% for iface, stats in system_stats.network_io.items() %}
+                        <tr>
+                            <td><code>{{ iface }}</code></td>
+                            <td class="text-subtle">↓ {{ "%.1f"|format(stats.bytes_recv / 1024**3) }} GB</td>
+                            <td class="text-subtle">↑ {{ "%.1f"|format(stats.bytes_sent / 1024**3) }} GB</td>
+                            <td class="text-subtle">err: {{ stats.errors_in + stats.errors_out }}</td>
+                        </tr>
+                        {% endfor %}
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Python Agent -->
+        <div class="panel agent-panel">
+            <div class="panel-header">
+                <span>Python Agent</span>
+                <button class="btn" onclick="clearHistory()">Clear History</button>
+            </div>
+            <div class="agent-history" id="agent-history">
+                <div class="text-subtle" style="font-size: 11px; margin-bottom: 12px;">
+                    Interactive Python environment. Type code and press Ctrl+Enter to execute.<br>
+                    Namespace persists between executions. Try: help_agent(), list_vars()
+                </div>
+            </div>
+            <div class="agent-input-area">
+                <textarea
+                    id="code-input"
+                    class="code-input"
+                    placeholder=">>> import os; os.getcwd()"
+                    onkeydown="handleKeyPress(event)"></textarea>
+                <div class="flex gap-sm">
+                    <button class="btn btn-primary" onclick="executeCode()">Execute (Ctrl+Enter)</button>
+                    <button class="btn" onclick="document.getElementById('code-input').value = ''">Clear</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Auto-update metrics timestamp
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('metrics-time').textContent = now.toTimeString().split(' ')[0];
+        }, 1000);
+
+        // Python agent execution
+        async function executeCode() {
+            const code = document.getElementById('code-input').value.trim();
+            if (!code) return;
+
+            const response = await fetch('/api/agent/execute', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({code})
+            });
+
+            const result = await response.json();
+            appendToHistory(result);
+            document.getElementById('code-input').value = '';
+            loadHistory();
+        }
+
+        function appendToHistory(result) {
+            const history = document.getElementById('agent-history');
+            const cell = document.createElement('div');
+            cell.className = `agent-cell ${result.success ? 'success' : 'error'}`;
+
+            let html = `<div class="agent-input">>>> ${escapeHtml(result.code)}</div>`;
+
+            if (result.output) {
+                html += `<div class="agent-output">${escapeHtml(result.output)}</div>`;
+            }
+            if (result.stdout) {
+                html += `<div class="agent-output">${escapeHtml(result.stdout)}</div>`;
+            }
+            if (result.error) {
+                html += `<div class="agent-error">${escapeHtml(result.error.type)}: ${escapeHtml(result.error.message)}</div>`;
+            }
+
+            cell.innerHTML = html;
+            history.appendChild(cell);
+            history.scrollTop = history.scrollHeight;
+        }
+
+        async function loadHistory() {
+            const response = await fetch('/api/agent/history');
+            const history = await response.json();
+            const container = document.getElementById('agent-history');
+            container.innerHTML = `<div class="text-subtle" style="font-size: 11px; margin-bottom: 12px;">
+                Interactive Python environment. Type code and press Ctrl+Enter to execute.<br>
+                Namespace persists between executions. Try: help_agent(), list_vars()
+            </div>`;
+
+            history.forEach(result => appendToHistory(result));
+        }
+
+        async function clearHistory() {
+            await fetch('/api/agent/history', {method: 'DELETE'});
+            loadHistory();
+        }
+
+        function handleKeyPress(event) {
+            if (event.ctrlKey && event.key === 'Enter') {
+                event.preventDefault();
+                executeCode();
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Load history on page load
+        loadHistory();
+    </script>
+</body>
+</html>

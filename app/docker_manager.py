@@ -1,0 +1,175 @@
+"""
+Docker Manager - Container discovery, control, and UI detection
+"""
+import docker
+import re
+from typing import List, Dict, Optional
+from pydantic import BaseModel
+
+
+class ContainerInfo(BaseModel):
+    """Container information model"""
+    id: str
+    name: str
+    image: str
+    status: str
+    state: str
+    ports: List[Dict[str, str]]
+    web_url: Optional[str] = None
+    labels: Dict[str, str] = {}
+
+
+class DockerManager:
+    """Manages Docker container inspection and control"""
+
+    # Known web UI patterns (name_pattern: default_port)
+    WEB_UI_PATTERNS = {
+        r'portainer': 9443,
+        r'gitea': 3000,
+        r'n8n': 5678,
+        r'node-red': 1880,
+        r'beszel': 4590,
+        r'grafana': 3000,
+        r'prometheus': 9090,
+        r'jupyter': 8888,
+        r'vscode|code-server': 8443,
+        r'heimdall|homer': 80,
+        r'sonarr|radarr|lidarr': 8989,
+        r'plex': 32400,
+        r'emby|jellyfin': 8096,
+        r'nginx-proxy-manager': 81,
+        r'traefik': 8080,
+        r'adguard': 80,
+        r'pihole': 80,
+        r'uptime-kuma': 3001,
+        r'ghost': 2368,
+        r'wordpress': 80,
+        r'nextcloud': 80,
+    }
+
+    def __init__(self):
+        try:
+            self.client = docker.DockerClient(base_url='unix://var/run/docker.sock')
+            self.client.ping()
+        except Exception as e:
+            print(f"Docker client initialization failed: {e}")
+            self.client = None
+
+    async def get_containers(self) -> List[ContainerInfo]:
+        """Get all containers with web UI detection"""
+        if not self.client:
+            return []
+
+        containers = []
+        for container in self.client.containers.list(all=True):
+            info = self._extract_container_info(container)
+            containers.append(info)
+
+        return containers
+
+    def _extract_container_info(self, container) -> ContainerInfo:
+        """Extract container information with UI detection"""
+        # Get port mappings
+        ports = self._parse_ports(container)
+
+        # Detect web UI
+        web_url = self._detect_web_ui(container.name, ports, container.labels)
+
+        return ContainerInfo(
+            id=container.short_id,
+            name=container.name,
+            image=container.image.tags[0] if container.image.tags else container.image.short_id,
+            status=container.status,
+            state=container.attrs['State']['Status'],
+            ports=ports,
+            web_url=web_url,
+            labels=container.labels
+        )
+
+    def _parse_ports(self, container) -> List[Dict[str, str]]:
+        """Parse container port mappings"""
+        ports = []
+        port_bindings = container.attrs.get('NetworkSettings', {}).get('Ports', {})
+
+        for container_port, host_bindings in port_bindings.items():
+            if host_bindings:
+                for binding in host_bindings:
+                    host_ip = binding.get('HostIp', '0.0.0.0')
+                    host_port = binding.get('HostPort', '')
+
+                    # Resolve 0.0.0.0 to actual host IP
+                    if host_ip == '0.0.0.0':
+                        host_ip = '192.168.12.141'  # arog IP
+
+                    ports.append({
+                        'container_port': container_port,
+                        'host_ip': host_ip,
+                        'host_port': host_port,
+                        'url': f"http://{host_ip}:{host_port}" if host_port else None
+                    })
+
+        return ports
+
+    def _detect_web_ui(self, container_name: str, ports: List[Dict], labels: Dict) -> Optional[str]:
+        """Detect if container has a web UI and return URL"""
+
+        # Priority 1: Check labels for explicit URL
+        if 'web.url' in labels:
+            return labels['web.url']
+        if 'traefik.http.routers' in str(labels):
+            # Traefik labeled container
+            for key, value in labels.items():
+                if 'traefik.http.routers' in key and 'rule' in key.lower():
+                    # Extract domain from Traefik rule
+                    match = re.search(r'Host\(`([^`]+)`\)', value)
+                    if match:
+                        return f"http://{match.group(1)}"
+
+        # Priority 2: Match against known patterns
+        name_lower = container_name.lower()
+        for pattern, default_port in self.WEB_UI_PATTERNS.items():
+            if re.search(pattern, name_lower):
+                # Find matching port binding
+                for port in ports:
+                    container_port_num = int(port['container_port'].split('/')[0])
+                    if container_port_num == default_port and port['url']:
+                        return port['url']
+
+        # Priority 3: Common HTTP ports (80, 443, 8080, 8443, 3000, 5000, etc.)
+        http_ports = ['80', '443', '8080', '8443', '3000', '5000', '5001', '9000']
+        for port in ports:
+            if port['host_port'] in http_ports and port['url']:
+                return port['url']
+
+        # Priority 4: If only one port exposed, assume it's the web UI
+        if len(ports) == 1 and ports[0]['url']:
+            return ports[0]['url']
+
+        return None
+
+    async def restart_container(self, container_id: str) -> Dict:
+        """Restart a container"""
+        try:
+            container = self.client.containers.get(container_id)
+            container.restart()
+            return {"status": "success", "action": "restart", "container": container_id}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    async def stop_container(self, container_id: str) -> Dict:
+        """Stop a container"""
+        try:
+            container = self.client.containers.get(container_id)
+            container.stop()
+            return {"status": "success", "action": "stop", "container": container_id}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    async def start_container(self, container_id: str) -> Dict:
+        """Start a container"""
+        try:
+            container = self.client.containers.get(container_id)
+            container.start()
+            return {"status": "success", "action": "start", "container": container_id}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}

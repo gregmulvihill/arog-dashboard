@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  arog-dashboard:
+    build: .
+    container_name: arog-dashboard
+    restart: unless-stopped
+
+    # Bind to port 80 on host
+    ports:
+      - "192.168.12.141:80:9100"
+
+    # Mount Docker socket for container inspection (read-only)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./data:/app/data
+      - ./sessions:/app/sessions
+
+    # Host networking for accurate system metrics
+    # Comment out ports above if using host mode
+    # network_mode: host
+
+    environment:
+      - PYTHONUNBUFFERED=1
+      - HOST_IP=192.168.12.141
+      - HOSTNAME=arog
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9100/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  arog-data:
+    driver: local
