@@ -1,0 +1,37 @@
+<table class="stats-table">
+    <tr>
+        <td class="stat-label">CPU</td>
+        <td class="stat-value">{{ "%.1f"|format(system_stats.cpu_percent) }}%</td>
+        <td class="stat-bar">
+            <div class="metric-bar">
+                <div class="metric-bar-fill {% if system_stats.cpu_percent > 80 %}error{% elif system_stats.cpu_percent > 60 %}warning{% endif %}"
+                     style="width: {{ system_stats.cpu_percent }}%"></div>
+            </div>
+        </td>
+        <td class="stat-detail">{{ system_stats.cpu_count }} cores @ {{ "%.0f"|format(system_stats.cpu_freq or 0) }} MHz</td>
+    </tr>
+    <tr>
+        <td class="stat-label">Memory</td>
+        <td class="stat-value">{{ "%.1f"|format(system_stats.memory_percent) }}%</td>
+        <td class="stat-bar">
+            <div class="metric-bar">
+                <div class="metric-bar-fill {% if system_stats.memory_percent > 80 %}error{% elif system_stats.memory_percent > 60 %}warning{% endif %}"
+                     style="width: {{ system_stats.memory_percent }}%"></div>
+            </div>
+        </td>
+        <td class="stat-detail">{{ "%.1f"|format(system_stats.memory_used / 1024**3) }} GB used / {{ "%.1f"|format(system_stats.memory_total / 1024**3) }} GB total</td>
+    </tr>
+    {% for disk in system_stats.disk_usage[:2] %}
+    <tr>
+        <td class="stat-label">Disk {{ disk.mountpoint }}</td>
+        <td class="stat-value">{{ "%.1f"|format(disk.percent) }}%</td>
+        <td class="stat-bar">
+            <div class="metric-bar">
+                <div class="metric-bar-fill {% if disk.percent > 80 %}error{% elif disk.percent > 60 %}warning{% endif %}"
+                     style="width: {{ disk.percent }}%"></div>
+            </div>
+        </td>
+        <td class="stat-detail">{{ "%.1f"|format(disk.used / 1024**3) }} GB used / {{ "%.1f"|format(disk.total / 1024**3) }} GB total</td>
+    </tr>
+    {% endfor %}
+</table>

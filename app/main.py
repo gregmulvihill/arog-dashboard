@@ -80,10 +80,18 @@ async def get_containers():
     return await docker_manager.get_containers()
 
 
-@app.get("/api/system")
-async def get_system_stats():
-    """Get system statistics"""
-    return await system_monitor.get_stats()
+@app.get("/api/system", response_class=HTMLResponse)
+async def get_system_stats(request: Request):
+    """Get system statistics as HTML fragment for htmx"""
+    system_stats = await system_monitor.get_stats()
+
+    return templates.TemplateResponse(
+        "fragments/system_metrics.html",
+        {
+            "request": request,
+            "system_stats": system_stats
+        }
+    )
 
 
 @app.get("/api/system/stream")

@@ -8,11 +8,15 @@
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js" defer></script>
 </head>
-<body>
-    <div class="dashboard">
+<body x-data="{ currentTab: 'dashboard' }">
+    <div class="dashboard-wrapper">
         <!-- Header -->
         <div class="header">
             <h1>{{ hostname }}.dashboard</h1>
+            <div class="tabs">
+                <button class="tab-btn" :class="{ 'active': currentTab === 'dashboard' }" @click="currentTab = 'dashboard'">Dashboard</button>
+                <button class="tab-btn" :class="{ 'active': currentTab === 'agent' }" @click="currentTab = 'agent'">Python Agent</button>
+            </div>
             <div class="stats">
                 <span>Uptime: {{ "%.1f"|format(system_stats.uptime / 3600) }}h</span>
                 <span>Load: {{ "%.2f %.2f %.2f"|format(*system_stats.load_avg) }}</span>
@@ -20,8 +24,9 @@
             </div>
         </div>
 
-        <!-- Left: Containers + System -->
-        <div class="containers-panel">
+        <!-- Dashboard Tab -->
+        <div class="tab-content" x-show="currentTab === 'dashboard'">
+            <div class="main-content">
             <!-- Docker Containers -->
             <div class="panel">
                 <div class="panel-header">
@@ -33,10 +38,10 @@
                         <thead>
                             <tr>
                                 <th>Status</th>
+                                <th style="width: 30px;"></th>
                                 <th>Name</th>
                                 <th>Image</th>
                                 <th>Ports</th>
-                                <th>Web UI</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -46,6 +51,13 @@
                                     <span class="container-status status-{{ container.state }}"></span>
                                     {{ container.state }}
                                 </td>
+                                <td style="text-align: center;">
+                                    {% if container.web_url %}
+                                        <a href="{{ container.web_url }}" target="_blank" class="container-link">→</a>
+                                    {% else %}
+                                        <span class="text-subtle">-</span>
+                                    {% endif %}
+                                </td>
                                 <td><code>{{ container.name }}</code></td>
                                 <td class="text-subtle">{{ container.image.split(':')[0].split('/')[-1] }}</td>
                                 <td class="text-subtle" style="font-size: 10px;">
@@ -53,13 +65,6 @@
                                         {{ container.ports[0].host_port if container.ports[0].host_port else '-' }}
                                     {% else %}
                                         -
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if container.web_url %}
-                                        <a href="{{ container.web_url }}" target="_blank" class="container-link">→ Open</a>
-                                    {% else %}
-                                        <span class="text-subtle">-</span>
                                     {% endif %}
                                 </td>
                             </tr>
@@ -76,50 +81,47 @@
                     <span class="text-subtle" id="metrics-time">{{ now.strftime('%H:%M:%S') }}</span>
                 </div>
                 <div class="panel-content">
-                    <div class="metrics-grid" id="system-metrics"
+                    <div class="metrics-table" id="system-metrics"
                          hx-get="/api/system"
                          hx-trigger="every 2s"
                          hx-swap="innerHTML">
-                        <!-- CPU -->
-                        <div class="metric">
-                            <div class="metric-label">CPU</div>
-                            <div class="metric-value">{{ "%.1f"|format(system_stats.cpu_percent) }}%</div>
-                            <div class="metric-bar">
-                                <div class="metric-bar-fill {% if system_stats.cpu_percent > 80 %}error{% elif system_stats.cpu_percent > 60 %}warning{% endif %}"
-                                     style="width: {{ system_stats.cpu_percent }}%"></div>
-                            </div>
-                            <div class="text-subtle" style="font-size: 10px; margin-top: 2px;">
-                                {{ system_stats.cpu_count }} cores @ {{ "%.0f"|format(system_stats.cpu_freq or 0) }} MHz
-                            </div>
-                        </div>
-
-                        <!-- Memory -->
-                        <div class="metric">
-                            <div class="metric-label">Memory</div>
-                            <div class="metric-value">{{ "%.1f"|format(system_stats.memory_percent) }}%</div>
-                            <div class="metric-bar">
-                                <div class="metric-bar-fill {% if system_stats.memory_percent > 80 %}error{% elif system_stats.memory_percent > 60 %}warning{% endif %}"
-                                     style="width: {{ system_stats.memory_percent }}%"></div>
-                            </div>
-                            <div class="text-subtle" style="font-size: 10px; margin-top: 2px;">
-                                {{ "%.1f"|format(system_stats.memory_used / 1024**3) }} / {{ "%.1f"|format(system_stats.memory_total / 1024**3) }} GB
-                            </div>
-                        </div>
-
-                        <!-- Disk -->
-                        {% for disk in system_stats.disk_usage[:2] %}
-                        <div class="metric">
-                            <div class="metric-label">{{ disk.mountpoint }}</div>
-                            <div class="metric-value">{{ "%.1f"|format(disk.percent) }}%</div>
-                            <div class="metric-bar">
-                                <div class="metric-bar-fill {% if disk.percent > 80 %}error{% elif disk.percent > 60 %}warning{% endif %}"
-                                     style="width: {{ disk.percent }}%"></div>
-                            </div>
-                            <div class="text-subtle" style="font-size: 10px; margin-top: 2px;">
-                                {{ "%.1f"|format(disk.used / 1024**3) }} / {{ "%.1f"|format(disk.total / 1024**3) }} GB
-                            </div>
-                        </div>
-                        {% endfor %}
+                        <table class="stats-table">
+                            <tr>
+                                <td class="stat-label">CPU</td>
+                                <td class="stat-value">{{ "%.1f"|format(system_stats.cpu_percent) }}%</td>
+                                <td class="stat-bar">
+                                    <div class="metric-bar">
+                                        <div class="metric-bar-fill {% if system_stats.cpu_percent > 80 %}error{% elif system_stats.cpu_percent > 60 %}warning{% endif %}"
+                                             style="width: {{ system_stats.cpu_percent }}%"></div>
+                                    </div>
+                                </td>
+                                <td class="stat-detail">{{ system_stats.cpu_count }} cores @ {{ "%.0f"|format(system_stats.cpu_freq or 0) }} MHz</td>
+                            </tr>
+                            <tr>
+                                <td class="stat-label">Memory</td>
+                                <td class="stat-value">{{ "%.1f"|format(system_stats.memory_percent) }}%</td>
+                                <td class="stat-bar">
+                                    <div class="metric-bar">
+                                        <div class="metric-bar-fill {% if system_stats.memory_percent > 80 %}error{% elif system_stats.memory_percent > 60 %}warning{% endif %}"
+                                             style="width: {{ system_stats.memory_percent }}%"></div>
+                                    </div>
+                                </td>
+                                <td class="stat-detail">{{ "%.1f"|format(system_stats.memory_used / 1024**3) }} GB used / {{ "%.1f"|format(system_stats.memory_total / 1024**3) }} GB total</td>
+                            </tr>
+                            {% for disk in system_stats.disk_usage[:2] %}
+                            <tr>
+                                <td class="stat-label">Disk {{ disk.mountpoint }}</td>
+                                <td class="stat-value">{{ "%.1f"|format(disk.percent) }}%</td>
+                                <td class="stat-bar">
+                                    <div class="metric-bar">
+                                        <div class="metric-bar-fill {% if disk.percent > 80 %}error{% elif disk.percent > 60 %}warning{% endif %}"
+                                             style="width: {{ disk.percent }}%"></div>
+                                    </div>
+                                </td>
+                                <td class="stat-detail">{{ "%.1f"|format(disk.used / 1024**3) }} GB used / {{ "%.1f"|format(disk.total / 1024**3) }} GB total</td>
+                            </tr>
+                            {% endfor %}
+                        </table>
                     </div>
                 </div>
             </div>
@@ -157,10 +159,12 @@
                     </table>
                 </div>
             </div>
+            </div>
         </div>
 
-        <!-- Right: Python Agent -->
-        <div class="panel agent-panel">
+        <!-- Python Agent Tab -->
+        <div class="tab-content" x-show="currentTab === 'agent'">
+            <div class="panel agent-panel-fullwidth">
             <div class="panel-header">
                 <span>Python Agent</span>
                 <button class="btn" onclick="clearHistory()">Clear History</button>
@@ -183,6 +187,7 @@
                 </div>
             </div>
         </div>
+    </div>
     </div>
 
     <script>
