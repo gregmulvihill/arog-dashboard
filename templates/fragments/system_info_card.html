@@ -1,0 +1,53 @@
+<div class="system-info-card">
+    <div class="system-header">
+        <h1 class="system-name">{{ system_stats.hostname }}.dashboard</h1>
+        <div class="system-meta">
+            <div class="status-indicator">
+                <span class="status-pulse status-up"></span>
+                <span class="status-text">Up</span>
+            </div>
+            <span class="divider">|</span>
+            <span class="meta-item">
+                <span class="meta-icon">⏱</span>
+                {{ "%.1f"|format(system_stats.uptime / 3600) }}h uptime
+            </span>
+            <span class="divider">|</span>
+            <span class="meta-item">
+                <span class="meta-icon">🐧</span>
+                {{ system_stats.os_type }} {{ system_stats.kernel_version }}
+            </span>
+            <span class="divider">|</span>
+            <span class="meta-item">
+                <span class="meta-icon">💾</span>
+                {{ "%.1f"|format(system_stats.memory_total / 1024**3) }} GB
+            </span>
+            <span class="divider">|</span>
+            <span class="meta-item">
+                <span class="meta-icon">⚙️</span>
+                {{ system_stats.cpu_model[:40] }}
+            </span>
+            <span class="divider">|</span>
+            <span class="meta-item">
+                {{ system_stats.cpu_count }} cores
+            </span>
+        </div>
+    </div>
+    <div class="system-stats-summary">
+        <div class="stat-pill">
+            <span class="pill-label">Load</span>
+            <span class="pill-value">{{ "%.2f %.2f %.2f"|format(*system_stats.load_avg) }}</span>
+        </div>
+        <div class="stat-pill">
+            <span class="pill-label">CPU</span>
+            <span class="pill-value {% if system_stats.cpu_percent > 80 %}pill-error{% elif system_stats.cpu_percent > 60 %}pill-warning{% endif %}">{{ "%.1f"|format(system_stats.cpu_percent) }}%</span>
+        </div>
+        <div class="stat-pill">
+            <span class="pill-label">Memory</span>
+            <span class="pill-value {% if system_stats.memory_percent > 80 %}pill-error{% elif system_stats.memory_percent > 60 %}pill-warning{% endif %}">{{ "%.1f"|format(system_stats.memory_percent) }}%</span>
+        </div>
+        <div class="stat-pill">
+            <span class="pill-label">Containers</span>
+            <span class="pill-value">{{ containers|length }}</span>
+        </div>
+    </div>
+</div>

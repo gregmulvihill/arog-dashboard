@@ -27,6 +27,10 @@
         <!-- Dashboard Tab -->
         <div class="tab-content" x-show="currentTab === 'dashboard'">
             <div class="main-content">
+
+            <!-- System Info Card -->
+            {% include 'fragments/system_info_card.html' %}
+
             <!-- Docker Containers -->
             <div class="panel">
                 <div class="panel-header">
@@ -34,37 +38,76 @@
                     <span class="text-subtle">{{ now.strftime('%H:%M:%S') }}</span>
                 </div>
                 <div class="panel-content">
-                    <table class="container-list">
+                    <table class="container-list" id="container-table">
                         <thead>
                             <tr>
-                                <th>Status</th>
-                                <th style="width: 30px;"></th>
-                                <th>Name</th>
-                                <th>Image</th>
-                                <th>Ports</th>
+                                <th class="sortable" data-sort="state">Status</th>
+                                <th>Port</th>
+                                <th class="sortable" data-sort="name">Name</th>
+                                <th class="sortable" data-sort="image">Image</th>
+                                <th class="sortable" data-sort="created">Created</th>
+                                <th class="sortable" data-sort="network">Network</th>
+                                <th>Volumes</th>
+                                <th class="sortable" data-sort="memory">Memory</th>
+                                <th class="sortable" data-sort="cpu">CPU</th>
+                                <th>Health</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for container in containers %}
-                            <tr>
+                            <tr data-state="{{ container.state }}"
+                                data-name="{{ container.name }}"
+                                data-image="{{ container.image }}"
+                                data-created="{{ container.created }}"
+                                data-network="{{ container.network_mode }}"
+                                data-memory="{{ container.memory_percent }}"
+                                data-cpu="{{ container.cpu_percent }}">
                                 <td>
                                     <span class="container-status status-{{ container.state }}"></span>
-                                    {{ container.state }}
+                                    <span class="{% if container.state != 'running' %}text-error{% endif %}">
+                                        {{ container.state }}
+                                    </span>
                                 </td>
-                                <td style="text-align: center;">
-                                    {% if container.web_url %}
-                                        <a href="{{ container.web_url }}" target="_blank" class="container-link">→</a>
+                                <td>
+                                    {% if container.web_url and container.ports %}
+                                        <a href="{{ container.web_url }}" target="_blank" class="port-button">
+                                            {{ container.ports[0].host_port }}
+                                        </a>
+                                    {% elif container.ports and container.ports[0].host_port %}
+                                        <span class="port-text">{{ container.ports[0].host_port }}</span>
                                     {% else %}
                                         <span class="text-subtle">-</span>
                                     {% endif %}
                                 </td>
-                                <td><code>{{ container.name }}</code></td>
+                                <td><code class="container-name">{{ container.name }}</code></td>
                                 <td class="text-subtle">{{ container.image.split(':')[0].split('/')[-1] }}</td>
-                                <td class="text-subtle" style="font-size: 10px;">
-                                    {% if container.ports %}
-                                        {{ container.ports[0].host_port if container.ports[0].host_port else '-' }}
+                                <td class="text-subtle time-ago" data-time="{{ container.created }}">
+                                    {{ container.created.split('T')[0] if container.created else '-' }}
+                                </td>
+                                <td class="text-subtle">{{ container.network_mode }}</td>
+                                <td class="text-subtle">{{ container.volumes|length }}</td>
+                                <td class="{% if container.memory_percent > 80 %}text-error{% elif container.memory_percent > 60 %}text-warning{% endif %}">
+                                    {% if container.memory_usage_mb > 0 %}
+                                        {{ "%.0f"|format(container.memory_usage_mb) }} MB
+                                        <span class="text-subtle">({{ "%.1f"|format(container.memory_percent) }}%)</span>
                                     {% else %}
-                                        -
+                                        <span class="text-subtle">-</span>
+                                    {% endif %}
+                                </td>
+                                <td class="{% if container.cpu_percent > 80 %}text-error{% elif container.cpu_percent > 60 %}text-warning{% endif %}">
+                                    {% if container.cpu_percent > 0 %}
+                                        {{ "%.1f"|format(container.cpu_percent) }}%
+                                    {% else %}
+                                        <span class="text-subtle">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if container.health_status %}
+                                        <span class="health-badge health-{{ container.health_status }}">
+                                            {{ container.health_status }}
+                                        </span>
+                                    {% else %}
+                                        <span class="text-subtle">-</span>
                                     {% endif %}
                                 </td>
                             </tr>
@@ -268,6 +311,48 @@
 
         // Load history on page load
         loadHistory();
+
+        // Table sorting functionality
+        let sortDirection = {};
+        document.querySelectorAll('.sortable').forEach(header => {
+            header.addEventListener('click', () => {
+                const sortKey = header.dataset.sort;
+                const table = document.getElementById('container-table');
+                const tbody = table.querySelector('tbody');
+                const rows = Array.from(tbody.querySelectorAll('tr'));
+
+                // Toggle sort direction
+                sortDirection[sortKey] = !sortDirection[sortKey];
+                const ascending = sortDirection[sortKey];
+
+                // Sort rows
+                rows.sort((a, b) => {
+                    let aVal = a.dataset[sortKey] || '';
+                    let bVal = b.dataset[sortKey] || '';
+
+                    // Convert to numbers if possible
+                    const aNum = parseFloat(aVal);
+                    const bNum = parseFloat(bVal);
+                    if (!isNaN(aNum) && !isNaN(bNum)) {
+                        return ascending ? aNum - bNum : bNum - aNum;
+                    }
+
+                    // String comparison
+                    return ascending ?
+                        aVal.localeCompare(bVal) :
+                        bVal.localeCompare(aVal);
+                });
+
+                // Update DOM
+                rows.forEach(row => tbody.appendChild(row));
+
+                // Update sort indicators
+                document.querySelectorAll('.sortable').forEach(h => {
+                    h.classList.remove('sort-asc', 'sort-desc');
+                });
+                header.classList.add(ascending ? 'sort-asc' : 'sort-desc');
+            });
+        });
     </script>
 </body>
 </html>

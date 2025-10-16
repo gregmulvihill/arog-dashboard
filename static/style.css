@@ -359,6 +359,216 @@ body {
     background: var(--subtle);
 }
 
+/* System Info Card - Beszel Style */
+.system-info-card {
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.02);
+    padding: calc(var(--spacing) * 3);
+    margin-bottom: calc(var(--spacing) * 2);
+}
+
+.system-header {
+    margin-bottom: calc(var(--spacing) * 2);
+}
+
+.system-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: calc(var(--spacing) * 2);
+}
+
+.system-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: calc(var(--spacing) * 2);
+    font-size: 11px;
+    opacity: 0.9;
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--spacing) * 2);
+}
+
+.status-pulse {
+    position: relative;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.status-up {
+    background: var(--accent);
+}
+
+.status-up::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2s ease-out infinite;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(2);
+        opacity: 0;
+    }
+}
+
+.divider {
+    color: var(--border);
+}
+
+.meta-item {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--spacing));
+}
+
+.meta-icon {
+    font-size: 13px;
+}
+
+.system-stats-summary {
+    display: flex;
+    gap: calc(var(--spacing) * 2);
+    flex-wrap: wrap;
+}
+
+.stat-pill {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--spacing));
+    padding: calc(var(--spacing) * 1.5) calc(var(--spacing) * 2);
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 3px;
+    font-size: 11px;
+}
+
+.pill-label {
+    color: var(--subtle);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 10px;
+}
+
+.pill-value {
+    color: var(--fg);
+    font-weight: 600;
+}
+
+.pill-warning {
+    color: var(--warning);
+}
+
+.pill-error {
+    color: var(--error);
+}
+
+/* Port Buttons - Large Clickable */
+.port-button {
+    display: inline-block;
+    padding: calc(var(--spacing) * 1.5) calc(var(--spacing) * 2);
+    background: var(--info);
+    color: var(--bg);
+    text-decoration: none;
+    border-radius: 3px;
+    font-weight: 600;
+    font-size: 11px;
+    transition: all 0.2s;
+    border: 1px solid var(--info);
+}
+
+.port-button:hover {
+    background: transparent;
+    color: var(--info);
+    transform: translateY(-1px);
+}
+
+.port-text {
+    color: var(--subtle);
+    font-size: 11px;
+}
+
+/* Health Badges */
+.health-badge {
+    display: inline-block;
+    padding: 2px calc(var(--spacing) * 2);
+    border-radius: 3px;
+    font-size: 10px;
+    text-transform: lowercase;
+}
+
+.health-healthy {
+    background: rgba(0, 255, 0, 0.2);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+}
+
+.health-unhealthy {
+    background: rgba(255, 51, 51, 0.2);
+    color: var(--error);
+    border: 1px solid var(--error);
+}
+
+.health-starting {
+    background: rgba(255, 170, 0, 0.2);
+    color: var(--warning);
+    border: 1px solid var(--warning);
+}
+
+/* Sortable Table Headers */
+.sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+}
+
+.sortable:hover {
+    background: var(--hover);
+}
+
+.sortable::after {
+    content: '⇅';
+    position: absolute;
+    right: 4px;
+    opacity: 0.3;
+    font-size: 10px;
+}
+
+.sortable.sort-asc::after {
+    content: '↑';
+    opacity: 1;
+    color: var(--accent);
+}
+
+.sortable.sort-desc::after {
+    content: '↓';
+    opacity: 1;
+    color: var(--accent);
+}
+
+/* Enhanced Container Table */
+.container-name {
+    color: var(--fg);
+    font-size: 11px;
+}
+
+.container-list td {
+    font-size: 10px;
+    padding: calc(var(--spacing) * 1.5) var(--spacing);
+}
+
 /* Utility classes */
 .text-subtle { color: var(--subtle); }
 .text-accent { color: var(--accent); }

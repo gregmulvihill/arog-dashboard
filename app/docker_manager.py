@@ -14,10 +14,10 @@ class ContainerInfo(BaseModel):
     image: str
     status: str
     state: str
-    ports: List[Dict[str, str]]
+    ports: List[Dict[str, str]] = []
     web_url: Optional[str] = None
     labels: Dict[str, str] = {}
-    created: str
+    created: str = ""
     started_at: Optional[str] = None
     finished_at: Optional[str] = None
     networks: List[str] = []
@@ -104,7 +104,7 @@ class DockerManager:
                 'name': m.get('Name', m.get('Source', 'unknown')),
                 'destination': m.get('Destination', ''),
                 'type': m.get('Type', 'bind'),
-                'rw': m.get('RW', True)
+                'rw': 'rw' if m.get('RW', True) else 'ro'
             }
             for m in mounts
         ]
