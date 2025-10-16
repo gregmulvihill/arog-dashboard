@@ -68,20 +68,28 @@ class DockerManager:
             print(f"Docker client initialization failed: {e}")
             self.client = None
 
-    async def get_containers(self) -> List[ContainerInfo]:
-        """Get all containers with web UI detection"""
+    async def get_containers(self, include_stats: bool = False) -> List[ContainerInfo]:
+        """Get all containers with web UI detection
+
+        Args:
+            include_stats: If True, collect CPU/memory stats (slow for many containers)
+        """
         if not self.client:
             return []
 
         containers = []
         for container in self.client.containers.list(all=True):
-            info = self._extract_container_info(container)
+            info = self._extract_container_info(container, include_stats=include_stats)
             containers.append(info)
 
         return containers
 
-    def _extract_container_info(self, container) -> ContainerInfo:
-        """Extract container information with UI detection"""
+    def _extract_container_info(self, container, include_stats: bool = False) -> ContainerInfo:
+        """Extract container information with UI detection
+
+        Args:
+            include_stats: If True, collect CPU/memory stats (slow operation)
+        """
         attrs = container.attrs
         state = attrs.get('State', {})
         config = attrs.get('Config', {})
@@ -114,34 +122,35 @@ class DockerManager:
         started_at = state.get('StartedAt', '')
         finished_at = state.get('FinishedAt', '') if state.get('Status') != 'running' else None
 
-        # Get resource stats (requires stats API call)
+        # Get resource stats (requires stats API call - SLOW!)
         memory_usage_mb = 0.0
         memory_limit_mb = 0.0
         memory_percent = 0.0
         cpu_percent = 0.0
 
-        try:
-            if container.status == 'running':
-                stats = container.stats(stream=False)
-                # Memory stats
-                mem_stats = stats.get('memory_stats', {})
-                memory_usage_mb = mem_stats.get('usage', 0) / (1024 * 1024)
-                memory_limit_mb = mem_stats.get('limit', 0) / (1024 * 1024)
-                if memory_limit_mb > 0:
-                    memory_percent = (memory_usage_mb / memory_limit_mb) * 100
+        if include_stats:
+            try:
+                if container.status == 'running':
+                    stats = container.stats(stream=False)
+                    # Memory stats
+                    mem_stats = stats.get('memory_stats', {})
+                    memory_usage_mb = mem_stats.get('usage', 0) / (1024 * 1024)
+                    memory_limit_mb = mem_stats.get('limit', 0) / (1024 * 1024)
+                    if memory_limit_mb > 0:
+                        memory_percent = (memory_usage_mb / memory_limit_mb) * 100
 
-                # CPU stats
-                cpu_stats = stats.get('cpu_stats', {})
-                precpu_stats = stats.get('precpu_stats', {})
-                cpu_delta = cpu_stats.get('cpu_usage', {}).get('total_usage', 0) - \
-                           precpu_stats.get('cpu_usage', {}).get('total_usage', 0)
-                system_delta = cpu_stats.get('system_cpu_usage', 0) - \
-                              precpu_stats.get('system_cpu_usage', 0)
-                num_cpus = cpu_stats.get('online_cpus', 1)
-                if system_delta > 0:
-                    cpu_percent = (cpu_delta / system_delta) * num_cpus * 100
-        except:
-            pass  # Stats not available
+                    # CPU stats
+                    cpu_stats = stats.get('cpu_stats', {})
+                    precpu_stats = stats.get('precpu_stats', {})
+                    cpu_delta = cpu_stats.get('cpu_usage', {}).get('total_usage', 0) - \
+                               precpu_stats.get('cpu_usage', {}).get('total_usage', 0)
+                    system_delta = cpu_stats.get('system_cpu_usage', 0) - \
+                                  precpu_stats.get('system_cpu_usage', 0)
+                    num_cpus = cpu_stats.get('online_cpus', 1)
+                    if system_delta > 0:
+                        cpu_percent = (cpu_delta / system_delta) * num_cpus * 100
+            except:
+                pass  # Stats not available
 
         # Get restart count
         restart_count = state.get('RestartCount', 0)

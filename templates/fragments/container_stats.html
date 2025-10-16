@@ -1,0 +1,15 @@
+<td class="{% if memory_percent > 80 %}text-error{% elif memory_percent > 60 %}text-warning{% endif %}">
+    {% if memory_usage_mb > 0 %}
+        {{ "%.0f"|format(memory_usage_mb) }} MB
+        <span class="text-subtle">({{ "%.1f"|format(memory_percent) }}%)</span>
+    {% else %}
+        <span class="text-subtle">-</span>
+    {% endif %}
+</td>
+<td class="{% if cpu_percent > 80 %}text-error{% elif cpu_percent > 60 %}text-warning{% endif %}">
+    {% if cpu_percent > 0 %}
+        {{ "%.1f"|format(cpu_percent) }}%
+    {% else %}
+        <span class="text-subtle">-</span>
+    {% endif %}
+</td>

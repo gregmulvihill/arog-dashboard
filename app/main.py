@@ -76,8 +76,51 @@ async def health():
 
 @app.get("/api/containers")
 async def get_containers():
-    """Get Docker containers list"""
-    return await docker_manager.get_containers()
+    """Get Docker containers list with stats"""
+    return await docker_manager.get_containers(include_stats=True)
+
+
+@app.get("/api/containers/{container_id}/stats", response_class=HTMLResponse)
+async def get_container_stats(container_id: str, request: Request):
+    """Get resource stats for a specific container as HTML fragment"""
+    try:
+        container = docker_manager.client.containers.get(container_id)
+
+        memory_usage_mb = 0.0
+        memory_percent = 0.0
+        cpu_percent = 0.0
+
+        if container.status == 'running':
+            stats = container.stats(stream=False)
+            # Memory stats
+            mem_stats = stats.get('memory_stats', {})
+            memory_usage_mb = mem_stats.get('usage', 0) / (1024 * 1024)
+            memory_limit_mb = mem_stats.get('limit', 0) / (1024 * 1024)
+            if memory_limit_mb > 0:
+                memory_percent = (memory_usage_mb / memory_limit_mb) * 100
+
+            # CPU stats
+            cpu_stats = stats.get('cpu_stats', {})
+            precpu_stats = stats.get('precpu_stats', {})
+            cpu_delta = cpu_stats.get('cpu_usage', {}).get('total_usage', 0) - \
+                       precpu_stats.get('cpu_usage', {}).get('total_usage', 0)
+            system_delta = cpu_stats.get('system_cpu_usage', 0) - \
+                          precpu_stats.get('system_cpu_usage', 0)
+            num_cpus = cpu_stats.get('online_cpus', 1)
+            if system_delta > 0:
+                cpu_percent = (cpu_delta / system_delta) * num_cpus * 100
+
+        return templates.TemplateResponse(
+            "fragments/container_stats.html",
+            {
+                "request": request,
+                "memory_usage_mb": memory_usage_mb,
+                "memory_percent": memory_percent,
+                "cpu_percent": cpu_percent
+            }
+        )
+    except Exception as e:
+        return f'<td class="text-subtle">Error</td><td class="text-subtle">Error</td>'
 
 
 @app.get("/api/system", response_class=HTMLResponse)

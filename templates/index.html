@@ -86,21 +86,18 @@
                                 </td>
                                 <td class="text-subtle">{{ container.network_mode }}</td>
                                 <td class="text-subtle">{{ container.volumes|length }}</td>
-                                <td class="{% if container.memory_percent > 80 %}text-error{% elif container.memory_percent > 60 %}text-warning{% endif %}">
-                                    {% if container.memory_usage_mb > 0 %}
-                                        {{ "%.0f"|format(container.memory_usage_mb) }} MB
-                                        <span class="text-subtle">({{ "%.1f"|format(container.memory_percent) }}%)</span>
-                                    {% else %}
-                                        <span class="text-subtle">-</span>
-                                    {% endif %}
-                                </td>
-                                <td class="{% if container.cpu_percent > 80 %}text-error{% elif container.cpu_percent > 60 %}text-warning{% endif %}">
-                                    {% if container.cpu_percent > 0 %}
-                                        {{ "%.1f"|format(container.cpu_percent) }}%
-                                    {% else %}
-                                        <span class="text-subtle">-</span>
-                                    {% endif %}
-                                </td>
+                                <!-- Stats cells loaded via htmx -->
+                                {% if container.state == 'running' %}
+                                <td class="text-subtle"
+                                    hx-get="/api/containers/{{ container.id }}/stats"
+                                    hx-trigger="load delay:{{ loop.index * 50 }}ms"
+                                    hx-swap="outerHTML"
+                                    hx-select="td"
+                                    colspan="2">Loading stats...</td>
+                                {% else %}
+                                <td class="text-subtle">-</td>
+                                <td class="text-subtle">-</td>
+                                {% endif %}
                                 <td>
                                     {% if container.health_status %}
                                         <span class="health-badge health-{{ container.health_status }}">
