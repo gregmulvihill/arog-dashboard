@@ -17,6 +17,19 @@ class ContainerInfo(BaseModel):
     ports: List[Dict[str, str]]
     web_url: Optional[str] = None
     labels: Dict[str, str] = {}
+    created: str
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    networks: List[str] = []
+    network_mode: str = ""
+    volumes: List[Dict[str, str]] = []
+    volume_size_mb: float = 0.0
+    memory_usage_mb: float = 0.0
+    memory_limit_mb: float = 0.0
+    memory_percent: float = 0.0
+    cpu_percent: float = 0.0
+    restart_count: int = 0
+    health_status: Optional[str] = None
 
 
 class DockerManager:
@@ -69,21 +82,96 @@ class DockerManager:
 
     def _extract_container_info(self, container) -> ContainerInfo:
         """Extract container information with UI detection"""
+        attrs = container.attrs
+        state = attrs.get('State', {})
+        config = attrs.get('Config', {})
+        host_config = attrs.get('HostConfig', {})
+
         # Get port mappings
         ports = self._parse_ports(container)
 
         # Detect web UI
         web_url = self._detect_web_ui(container.name, ports, container.labels)
 
+        # Get network information
+        networks = list(attrs.get('NetworkSettings', {}).get('Networks', {}).keys())
+        network_mode = host_config.get('NetworkMode', 'bridge')
+
+        # Get volume information
+        mounts = attrs.get('Mounts', [])
+        volumes = [
+            {
+                'name': m.get('Name', m.get('Source', 'unknown')),
+                'destination': m.get('Destination', ''),
+                'type': m.get('Type', 'bind'),
+                'rw': m.get('RW', True)
+            }
+            for m in mounts
+        ]
+
+        # Get timestamps
+        created = attrs.get('Created', '')
+        started_at = state.get('StartedAt', '')
+        finished_at = state.get('FinishedAt', '') if state.get('Status') != 'running' else None
+
+        # Get resource stats (requires stats API call)
+        memory_usage_mb = 0.0
+        memory_limit_mb = 0.0
+        memory_percent = 0.0
+        cpu_percent = 0.0
+
+        try:
+            if container.status == 'running':
+                stats = container.stats(stream=False)
+                # Memory stats
+                mem_stats = stats.get('memory_stats', {})
+                memory_usage_mb = mem_stats.get('usage', 0) / (1024 * 1024)
+                memory_limit_mb = mem_stats.get('limit', 0) / (1024 * 1024)
+                if memory_limit_mb > 0:
+                    memory_percent = (memory_usage_mb / memory_limit_mb) * 100
+
+                # CPU stats
+                cpu_stats = stats.get('cpu_stats', {})
+                precpu_stats = stats.get('precpu_stats', {})
+                cpu_delta = cpu_stats.get('cpu_usage', {}).get('total_usage', 0) - \
+                           precpu_stats.get('cpu_usage', {}).get('total_usage', 0)
+                system_delta = cpu_stats.get('system_cpu_usage', 0) - \
+                              precpu_stats.get('system_cpu_usage', 0)
+                num_cpus = cpu_stats.get('online_cpus', 1)
+                if system_delta > 0:
+                    cpu_percent = (cpu_delta / system_delta) * num_cpus * 100
+        except:
+            pass  # Stats not available
+
+        # Get restart count
+        restart_count = state.get('RestartCount', 0)
+
+        # Get health status
+        health = state.get('Health', {})
+        health_status = health.get('Status') if health else None
+
         return ContainerInfo(
             id=container.short_id,
             name=container.name,
             image=container.image.tags[0] if container.image.tags else container.image.short_id,
             status=container.status,
-            state=container.attrs['State']['Status'],
+            state=state.get('Status', 'unknown'),
             ports=ports,
             web_url=web_url,
-            labels=container.labels
+            labels=container.labels,
+            created=created,
+            started_at=started_at,
+            finished_at=finished_at,
+            networks=networks,
+            network_mode=network_mode,
+            volumes=volumes,
+            volume_size_mb=0.0,  # Would need df to calculate
+            memory_usage_mb=memory_usage_mb,
+            memory_limit_mb=memory_limit_mb,
+            memory_percent=memory_percent,
+            cpu_percent=cpu_percent,
+            restart_count=restart_count,
+            health_status=health_status
         )
 
     def _parse_ports(self, container) -> List[Dict[str, str]]:

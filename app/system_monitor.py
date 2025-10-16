@@ -4,6 +4,7 @@ CPU, Memory, Disk, Network, Temperatures, Processes
 """
 import psutil
 import socket
+import platform
 from typing import Dict, List, Optional
 from pydantic import BaseModel
 from datetime import datetime
@@ -14,6 +15,10 @@ class SystemStats(BaseModel):
     timestamp: str
     hostname: str
     uptime: float
+    os_type: str
+    os_version: str
+    kernel_version: str
+    cpu_model: str
 
     # CPU
     cpu_percent: float
@@ -52,6 +57,22 @@ class SystemMonitor:
 
     async def get_stats(self) -> SystemStats:
         """Get current system statistics"""
+
+        # System info
+        os_type = platform.system()
+        os_version = platform.version()
+        kernel_version = platform.release()
+
+        # CPU model
+        cpu_model = "Unknown"
+        try:
+            with open('/proc/cpuinfo', 'r') as f:
+                for line in f:
+                    if 'model name' in line:
+                        cpu_model = line.split(':')[1].strip()
+                        break
+        except:
+            cpu_model = platform.processor() or "Unknown"
 
         # CPU
         cpu_percent = psutil.cpu_percent(interval=0.1)
@@ -102,6 +123,10 @@ class SystemMonitor:
             timestamp=datetime.now().isoformat(),
             hostname=socket.gethostname(),
             uptime=uptime,
+            os_type=os_type,
+            os_version=os_version,
+            kernel_version=kernel_version,
+            cpu_model=cpu_model,
             cpu_percent=cpu_percent,
             cpu_count=cpu_count,
             cpu_freq=cpu_freq,
